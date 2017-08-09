@@ -56,23 +56,24 @@ def getHessianMLP(n_input, n_hidden, n_output):
         # Start constructing a computational graph for multilayer perceptron
         ###  Since we want to store parameters as one long vector, we first define our parameters as below and then
         ### reshape it later according to each layer specification.
-        parameters = tf.Variable(tf.concat([tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
-                                            tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])], 0))
+        parameters = tf.Variable(
+            tf.squeeze(tf.concat([tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
+                                  tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])], 0)))
 
         with tf.name_scope("hidden") as scope:
             idx_from = 0
-            weights = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[n_input * n_hidden, 1]),
+            weights = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_input * n_hidden, ]),
                                  [n_input, n_hidden])
             idx_from = idx_from + n_input * n_hidden
-            biases = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[n_hidden, 1]),
+            biases = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_hidden]),
                                 [n_hidden])  # tf.Variable(tf.truncated_normal([n_hidden]))
             hidden = tf.matmul(x_input, weights) + biases
         with tf.name_scope("linear") as scope:
             idx_from = idx_from + n_hidden
-            weights = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[n_hidden * n_output, 1]),
+            weights = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_hidden * n_output]),
                                  [n_hidden, n_output])
             idx_from = idx_from + n_hidden * n_output
-            biases = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[n_output, 1]), [n_output])
+            biases = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_output]), [n_output])
             output = tf.nn.softmax(tf.matmul(hidden, weights) + biases)
         # Define cross entropy loss
         loss = -tf.reduce_sum(y_target * tf.log(output))
@@ -83,23 +84,30 @@ def getHessianMLP(n_input, n_hidden, n_output):
         tvars = tf.trainable_variables()
         # Get gradients of loss with repect to parameters
         dloss_dw = tf.gradients(loss, tvars)[0]
-        dim, _ = dloss_dw.get_shape()
+        dim = dloss_dw.get_shape()
+
+        trueHess = tf.hessians(loss, tvars)
+
         hess = []
-        for i in range(dim):
+        for i in range(dim[0].value):
             # tf.slice: https://www.tensorflow.org/versions/0.6.0/api_docs/python/array_ops.html#slice
-            dfx_i = tf.slice(dloss_dw, begin=[i, 0], size=[1, 1])
+            dfx_i = tf.slice(dloss_dw, begin=[i], size=[1])
             ddfx_i = tf.gradients(dfx_i, parameters)[
                 0]  # whenever we use tf.gradients, make sure you get the actual tensors by putting [0] at the end
             hess.append(ddfx_i)
         hess = tf.squeeze(hess)
+
         init_op = tf.initialize_all_variables()
         with tf.Session() as sess:
             sess.run(init_op)
-            feed_dict = {x_input: np.random.random([batch_size, n_input]),
-                         y_target: np.random.random([batch_size, n_output])}
+            input_x = np.random.random([batch_size, n_input])
+            input_y = np.random.random([batch_size, n_output])
+
+            feed_dict = {x_input: input_x, y_target: input_y}
+
             # print(sess.run(loss, feed_dict))
             print(hess.get_shape())
-            print(sess.run(hess, feed_dict))
+            print(sess.run([trueHess, hess], feed_dict))
 
 
 if __name__ == '__main__':
