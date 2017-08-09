@@ -56,8 +56,8 @@ def getHessianMLP(n_input, n_hidden, n_output):
         # Start constructing a computational graph for multilayer perceptron
         ###  Since we want to store parameters as one long vector, we first define our parameters as below and then
         ### reshape it later according to each layer specification.
-        parameters = tf.Variable(tf.concat(0, [tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
-                                               tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])]))
+        parameters = tf.Variable(tf.concat([tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
+                                            tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])], 0))
 
         with tf.name_scope("hidden") as scope:
             idx_from = 0
@@ -104,3 +104,10 @@ def getHessianMLP(n_input, n_hidden, n_output):
 
 if __name__ == '__main__':
     getHessian(3)
+    getHessianMLP(n_input=3, n_hidden=4, n_output=3)
+
+
+    # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    # gvs = optimizer.compute_gradients(cost)
+    # capped_gvs = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs]
+    # train_op = optimizer.apply_gradients(capped_gvs)
