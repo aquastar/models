@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import tensorflow as tf
 
@@ -13,6 +15,7 @@ def getHessian(dim):
         # Define our variable
         x = tf.Variable(np.float32(np.repeat(1, dim).reshape(dim, 1)))
         # Construct the computational graph for quadratic function: f(x) = 1/2 * x^t A x + b^t x + c
+        # set different parameters for A/b/c
         fx = 0.5 * tf.matmul(tf.matmul(tf.transpose(x), A), x) + tf.matmul(tf.transpose(b), x) + c
 
         # Get gradients of fx with repect to x
@@ -38,10 +41,12 @@ def getHessian(dim):
         with tf.Session() as sess:
             sess.run(init_op)
             # We need to feed actual values into the computational graph that we created above.
-            feed_dict = {A: np.float32(np.repeat(2, dim * dim).reshape(dim, dim)),
+            feed_dict = {A: np.float32(np.array([[1, 2, 2], [2, 2, 2], [3, 8, 10]])),
                          b: np.float32(np.repeat(3, dim).reshape(dim, 1)), c: [1]}
             # sess.run() executes the graph. Here, "hess" will be calculated with the values in "feed_dict".
-            print(sess.run(hess, feed_dict))
+            hess = sess.run(hess, feed_dict)
+
+            print np.linalg.det(hess)
 
 
 def getHessianMLP(n_input, n_hidden, n_output):
@@ -56,13 +61,14 @@ def getHessianMLP(n_input, n_hidden, n_output):
         # Start constructing a computational graph for multilayer perceptron
         ###  Since we want to store parameters as one long vector, we first define our parameters as below and then
         ### reshape it later according to each layer specification.
-        parameters = tf.Variable(
-            tf.squeeze(tf.concat([tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
-                                  tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])], 0)))
+        parameters = tf.Variable(tf.squeeze
+                                 (tf.concat([tf.truncated_normal([n_input * n_hidden, 1]), tf.zeros([n_hidden, 1]),
+                                             tf.truncated_normal([n_hidden * n_output, 1]), tf.zeros([n_output, 1])],
+                                            0)))
 
         with tf.name_scope("hidden") as scope:
             idx_from = 0
-            weights = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_input * n_hidden, ]),
+            weights = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_input * n_hidden]),
                                  [n_input, n_hidden])
             idx_from = idx_from + n_input * n_hidden
             biases = tf.reshape(tf.slice(parameters, begin=[idx_from], size=[n_hidden]),
@@ -106,13 +112,22 @@ def getHessianMLP(n_input, n_hidden, n_output):
             feed_dict = {x_input: input_x, y_target: input_y}
 
             # print(sess.run(loss, feed_dict))
-            print(hess.get_shape())
-            print(sess.run([trueHess, hess], feed_dict))
+            # print(hess.get_shape())
+            # start = time.time()
+            # tf_hess = sess.run([trueHess], feed_dict)cd
+            # end = time.time()
+            # print end - start
+
+            start = time.time()
+            hess = sess.run([hess], feed_dict)
+            print np.linalg.det(hess[0])
+            end = time.time()
+            print end - start
 
 
 if __name__ == '__main__':
     getHessian(3)
-    getHessianMLP(n_input=3, n_hidden=4, n_output=3)
+    # getHessianMLP(n_input=2, n_hidden=2, n_output=2)
 
 
     # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
