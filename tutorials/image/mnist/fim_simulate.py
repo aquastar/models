@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def getHessian(dim):
+def getHessian(dim, val_A, val_b, val_c):
     # Each time getHessian is called, we create a new graph so that the default graph (which exists a priori) won't be filled with old ops.
     g = tf.Graph()
     with g.as_default():
@@ -13,10 +13,16 @@ def getHessian(dim):
         b = tf.placeholder(tf.float32, shape=[dim, 1])
         c = tf.placeholder(tf.float32, shape=[1])
         # Define our variable
-        x = tf.Variable(np.float32(np.repeat(1, dim).reshape(dim, 1)))
+        x = tf.Variable(np.float32(np.random.random([dim, 1])))
+        xp = tf.Variable(tf.squeeze(x))
+        # x = tf.Variable(np.float32(np.repeat(1, dim).reshape(dim, 1)))
+
         # Construct the computational graph for quadratic function: f(x) = 1/2 * x^t A x + b^t x + c
         # set different parameters for A/b/c
         fx = 0.5 * tf.matmul(tf.matmul(tf.transpose(x), A), x) + tf.matmul(tf.transpose(b), x) + c
+        fxp = 0.5 * tf.matmul(tf.matmul(tf.transpose(tf.reshape(xp, [dim, 1])), A), tf.reshape(xp, [dim, 1])) + \
+              tf.matmul(tf.transpose(b), tf.reshape(xp, [dim, 1])) + \
+              c
 
         # Get gradients of fx with repect to x
         dfx = tf.gradients(fx, x)[0]
@@ -35,18 +41,23 @@ def getHessian(dim):
                 hess = tf.concat([hess, ddfx_i], 1)
                 ## Instead of doing this, you can just append each element to a list, and then do tf.pack(list_object) to get the hessian matrix too.
                 ## I'll use this alternative in the second example.
+
+        hardHess = tf.hessians(fxp, xp)
+
         # Before we execute the graph, we need to initialize all the variables we defined
         init_op = tf.initialize_all_variables()
 
         with tf.Session() as sess:
             sess.run(init_op)
             # We need to feed actual values into the computational graph that we created above.
-            feed_dict = {A: np.float32(np.array([[1, 2, 2], [2, 2, 2], [3, 8, 10]])),
-                         b: np.float32(np.repeat(3, dim).reshape(dim, 1)), c: [1]}
+            feed_dict = {A: val_A, b: val_b, c: val_c}
             # sess.run() executes the graph. Here, "hess" will be calculated with the values in "feed_dict".
-            hess = sess.run(hess, feed_dict)
+            hardHess, hess = sess.run([hardHess, hess], feed_dict)
 
-            print np.linalg.det(hess)
+            print hess
+            print hardHess
+            print val_A
+            print np.linalg.det(hess), np.linalg.det(hardHess)[0], np.linalg.det(val_A)
 
 
 def getHessianMLP(n_input, n_hidden, n_output):
@@ -126,9 +137,15 @@ def getHessianMLP(n_input, n_hidden, n_output):
 
 
 if __name__ == '__main__':
-    getHessian(3)
-    # getHessianMLP(n_input=2, n_hidden=2, n_output=2)
+    # Simulate 1: function's Det(A) compared with estimated Det(A)
+    # Simulate 1: function's Det(A) compared with estimated Det(A)
+    dim = 3
+    val_A = 10 * np.float32(np.random.random([dim, dim]))
+    val_b = np.float32(np.random.random([dim, 1]))
+    val_c = [1]
 
+    getHessian(dim, val_A, val_b, val_c)
+    # getHessianMLP(n_input=2, n_hidden=2, n_output=2)
 
     # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     # gvs = optimizer.compute_gradients(cost)
