@@ -56,7 +56,8 @@ def getHessian(dim, val_A, val_b, val_c):
 
             print hess
             print hardHess
-            print val_A
+            print \
+                val_A
             print np.linalg.det(hess), np.linalg.det(hardHess)[0], np.linalg.det(val_A)
 
 
