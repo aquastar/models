@@ -157,7 +157,7 @@ def main(_):
         shape=(EVAL_BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS))
 
     # initialize ensemble parameters
-    parameters = tf.Variable(tf.concat([
+    parameters = tf.Variable( tf.concat([
         # conv1_weight
         tf.truncated_normal([5 * 5 * NUM_CHANNELS * 32, 1],  # 5x5 filter, depth 32.
                             stddev=0.1,
@@ -183,6 +183,7 @@ def main(_):
     ], 0)
     )
 
+    # divide parameter for getting physical parameters
     idx_from = 0
     conv1_weights = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[5 * 5 * NUM_CHANNELS * 32, 1]),
                                [5, 5, NUM_CHANNELS, 32])
@@ -211,34 +212,34 @@ def main(_):
         [512, NUM_LABELS])
     idx_from += 512 * NUM_LABELS
     fc2_biases = tf.reshape(
-        tf.slice(parameters, begin=[idx_from, 0], size=[512, 1]),
-        [512])
-    exit(0)
+        tf.slice(parameters, begin=[idx_from, 0], size=[NUM_LABELS, 1]),
+        [NUM_LABELS])
 
+    # THE ORIGINAL SETTING, COMMENTED
     # The variables below hold all the trainable weights. They are passed an
     # initial value which will be assigned when we call:
     # {tf.global_variables_initializer().run()}
-    conv1_weights = tf.Variable(
-        tf.truncated_normal([5, 5, NUM_CHANNELS, 32],  # 5x5 filter, depth 32.
-                            stddev=0.1,
-                            seed=SEED, dtype=data_type()))
-    conv1_biases = tf.Variable(tf.zeros([32], dtype=data_type()))
-    conv2_weights = tf.Variable(tf.truncated_normal(
-        [5, 5, 32, 64], stddev=0.1,
-        seed=SEED, dtype=data_type()))
-    conv2_biases = tf.Variable(tf.constant(0.1, shape=[64], dtype=data_type()))
-    fc1_weights = tf.Variable(  # fully connected, depth 512.
-        tf.truncated_normal([IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64, 512],
-                            stddev=0.1,
-                            seed=SEED,
-                            dtype=data_type()))
-    fc1_biases = tf.Variable(tf.constant(0.1, shape=[512], dtype=data_type()))
-    fc2_weights = tf.Variable(tf.truncated_normal([512, NUM_LABELS],
-                                                  stddev=0.1,
-                                                  seed=SEED,
-                                                  dtype=data_type()))
-    fc2_biases = tf.Variable(tf.constant(
-        0.1, shape=[NUM_LABELS], dtype=data_type()))
+    # conv1_weights = tf.Variable(
+    #     tf.truncated_normal([5, 5, NUM_CHANNELS, 32],  # 5x5 filter, depth 32.
+    #                         stddev=0.1,
+    #                         seed=SEED, dtype=data_type()))
+    # conv1_biases = tf.Variable(tf.zeros([32], dtype=data_type()))
+    # conv2_weights = tf.Variable(tf.truncated_normal(
+    #     [5, 5, 32, 64], stddev=0.1,
+    #     seed=SEED, dtype=data_type()))
+    # conv2_biases = tf.Variable(tf.constant(0.1, shape=[64], dtype=data_type()))
+    # fc1_weights = tf.Variable(  # fully connected, depth 512.
+    #     tf.truncated_normal([IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64, 512],
+    #                         stddev=0.1,
+    #                         seed=SEED,
+    #                         dtype=data_type()))
+    # fc1_biases = tf.Variable(tf.constant(0.1, shape=[512], dtype=data_type()))
+    # fc2_weights = tf.Variable(tf.truncated_normal([512, NUM_LABELS],
+    #                                               stddev=0.1,
+    #                                               seed=SEED,
+    #                                               dtype=data_type()))
+    # fc2_biases = tf.Variable(tf.constant(
+    #     0.1, shape=[NUM_LABELS], dtype=data_type()))
 
     # We will replicate the model structure for the training subgraph, as well
     # as the evaluation subgraphs, while sharing the trainable parameters.
@@ -250,7 +251,7 @@ def main(_):
         conv = tf.nn.conv2d(data,
                             conv1_weights,
                             strides=[1, 1, 1, 1],
-                            padding='SAME')
+                            padding='SAME', name='conv1')
         # Bias and rectified linear non-linearity.
         relu = tf.nn.relu(tf.nn.bias_add(conv, conv1_biases))
         # Max pooling. The kernel size spec {ksize} also follows the layout of
@@ -262,7 +263,7 @@ def main(_):
         conv = tf.nn.conv2d(pool,
                             conv2_weights,
                             strides=[1, 1, 1, 1],
-                            padding='SAME')
+                            padding='SAME', name='conv2')
         relu = tf.nn.relu(tf.nn.bias_add(conv, conv2_biases))
         pool = tf.nn.max_pool(relu,
                               ksize=[1, 2, 2, 1],
@@ -309,8 +310,19 @@ def main(_):
                                            0.9).minimize(loss,
                                                          global_step=batch)
 
-    # tvars = tf.trainable_variables()
-    # hess = tf.hessians(loss, logits)
+    tvars = tf.trainable_variables()
+    hess = tf.hessians(loss, tf.reshape(tvars,[-1]))
+
+    # dloss_dw = tf.gradients(loss, tvars)[0]
+    # dim, _ = dloss_dw.get_shape()
+    # hess = []
+    # for i in range(dim):
+    #     # tf.slice: https://www.tensorflow.org/versions/0.6.0/api_docs/python/array_ops.html#slice
+    #     dfx_i = tf.slice(dloss_dw, begin=[i, 0], size=[1, 1])
+    #     ddfx_i = tf.gradients(dfx_i, parameters)[
+    #         0]  # whenever we use tf.gradients, make sure you get the actual tensors by putting [0] at the end
+    #     hess.append(ddfx_i)
+    # hess = tf.squeeze(hess)
 
     # Predictions for the current training minibatch.
     train_prediction = tf.nn.softmax(logits)
