@@ -15,9 +15,9 @@ def getHessianMLP(n_input, n_hidden, n_output):
         ###  Since we want to store parameters as one long vector, we first define our parameters as below and then
         ### reshape it later according to each layer specification.
         l1 = tf.truncated_normal([n_input * n_hidden, 1])
-        # parameters = tf.Variable(tf.concat(
-        #     [tf.zeros([n_input * n_hidden, 1]), tf.ones([n_hidden, 1]), tf.zeros([n_hidden * n_output, 1]),
-        #      tf.ones([n_output, 1])], 0))
+        parameters = tf.Variable(tf.concat(
+            [tf.zeros([n_input * n_hidden, 1]), tf.ones([n_hidden, 1]), tf.zeros([n_hidden * n_output, 1]),
+             tf.ones([n_output, 1])], 0))
         parameters = tf.Variable(np.arange(1, 18, dtype=np.float32))
 
         with tf.name_scope("hidden") as scope:
@@ -46,7 +46,8 @@ def getHessianMLP(n_input, n_hidden, n_output):
         # Get trainable variables
         tvars = tf.trainable_variables()
         # Get gradients of loss with repect to parameters
-        hess = tf.hessians(loss, tvars)
+        hess = tf.hessians(loss, tvars[1])
+        hess_det = tf.matrix_determinant(hess)
         # dloss_dw = tf.gradients(loss, tvars)[0]
         # dim, _ = dloss_dw.get_shape()
         # hess = []
@@ -61,10 +62,10 @@ def getHessianMLP(n_input, n_hidden, n_output):
         with tf.Session() as sess:
             sess.run(init_op)
 
-            print sess.run([hess])
+            feed_dict = {x_input: np.random.random([batch_size, n_input]),
+                         y_target: np.random.random([batch_size, n_output])}
+            print(sess.run([hess, hess_det], feed_dict))
 
-            # feed_dict = {x_input: np.random.random([batch_size, n_input]),
-            #              y_target: np.random.random([batch_size, n_output])}
             # # print(sess.run(loss, feed_dict))
             # print(hess.get_shape())
             # hess = sess.run(hess, feed_dict)
