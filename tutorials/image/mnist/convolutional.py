@@ -156,6 +156,65 @@ def main(_):
         data_type(),
         shape=(EVAL_BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS))
 
+    # initialize ensemble parameters
+    parameters = tf.Variable(tf.concat([
+        # conv1_weight
+        tf.truncated_normal([5 * 5 * NUM_CHANNELS * 32, 1],  # 5x5 filter, depth 32.
+                            stddev=0.1,
+                            seed=SEED, dtype=data_type()),
+        # conv1_bias
+        tf.zeros([32, 1], dtype=data_type()),
+        # conv2_weights
+        tf.truncated_normal([5 * 5 * 32 * 64, 1], stddev=0.1, seed=SEED, dtype=data_type()),
+        # conv2_bias
+        tf.constant(0.1, shape=[64, 1], dtype=data_type()),
+
+        # fc1_weights
+        tf.truncated_normal([IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64 * 512, 1],
+                            stddev=0.1,
+                            seed=SEED,
+                            dtype=data_type()),
+        # fc1_bias
+        tf.constant(0.1, shape=[512, 1], dtype=data_type()),
+        # fc2_weights
+        tf.truncated_normal([512 * NUM_LABELS, 1], stddev=0.1, seed=SEED, dtype=data_type()),
+        # fc_bias
+        tf.constant(0.1, shape=[NUM_LABELS, 1], dtype=data_type())
+    ], 0)
+    )
+
+    idx_from = 0
+    conv1_weights = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[5 * 5 * NUM_CHANNELS * 32, 1]),
+                               [5, 5, NUM_CHANNELS, 32])
+    idx_from += 5 * 5 * NUM_CHANNELS * 32
+    conv1_biases = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[32, 1]),
+                              [32])
+    idx_from += 32
+
+    conv2_weights = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[5 * 5 * 32 * 64, 1]),
+                               [5, 5, 32, 64])
+    idx_from += 5 * 5 * 32 * 64
+    conv2_biases = tf.reshape(tf.slice(parameters, begin=[idx_from, 0], size=[64, 1]),
+                              [64])
+    idx_from += 64
+    fc1_weights = tf.reshape(
+        tf.slice(parameters, begin=[idx_from, 0], size=[IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64 * 512, 1]),
+        [IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64, 512])
+
+    idx_from += IMAGE_SIZE // 4 * IMAGE_SIZE // 4 * 64 * 512
+    fc1_biases = tf.reshape(
+        tf.slice(parameters, begin=[idx_from, 0], size=[512, 1]),
+        [512])
+    idx_from += 512
+    fc2_weights = tf.reshape(
+        tf.slice(parameters, begin=[idx_from, 0], size=[512 * NUM_LABELS, 1]),
+        [512, NUM_LABELS])
+    idx_from += 512 * NUM_LABELS
+    fc2_biases = tf.reshape(
+        tf.slice(parameters, begin=[idx_from, 0], size=[512, 1]),
+        [512])
+    exit(0)
+
     # The variables below hold all the trainable weights. They are passed an
     # initial value which will be assigned when we call:
     # {tf.global_variables_initializer().run()}
@@ -250,12 +309,8 @@ def main(_):
                                            0.9).minimize(loss,
                                                          global_step=batch)
 
-    optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
-    gvs = optimizer.compute_gradients(loss)
-    tvars = tf.trainable_variables()
-    hess = tf.hessians(loss, tvars)
-    capped_gvs = gvs * hess
-    train_op = optimizer.apply_gradients(capped_gvs)
+    # tvars = tf.trainable_variables()
+    # hess = tf.hessians(loss, logits)
 
     # Predictions for the current training minibatch.
     train_prediction = tf.nn.softmax(logits)
@@ -319,6 +374,8 @@ def main(_):
                 print('Validation error: %.1f%%' % error_rate(
                     eval_in_batches(validation_data, sess), validation_labels))
                 sys.stdout.flush()
+                # hess = sess.run(hess, feed_dict=feed_dict)
+                # print('Hessian error: %.3f%%' % (hess))
         # Finally print the result!
         test_error = error_rate(eval_in_batches(test_data, sess), test_labels)
         print('Test error: %.1f%%' % test_error)
